@@ -1,0 +1,9 @@
+﻿body {
+    height: 100vh;
+    background-color: #34495e;
+}
+
+.video-local {
+    height: 40%;
+    width: 100%;
+}

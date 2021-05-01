@@ -29,27 +29,18 @@
             videoLocalElement.srcObject = stream;
             videoLocalElement.muted = true;
             stream.getTracks().forEach(track => that.myPeerConnection.addTrack(track, stream));
-            that.myPeerConnection.createOffer().then(offer => {
-                that.myOffer = offer;
-                that.myPeerConnection.setLocalDescription(offer).then(result => {
-                    that.myHubConnection.invoke("SendOffer", that.myUid, offer).catch(function (err) {
-                        return console.error(err.toString());
-                    });
-                });
-            });
         }).catch(error => {
 
         });
 
-        that.myHubConnection.on("RecvOffer", function (user, offer) {
+        that.myHubConnection.on("RecvOffer", function (user, offerJson) {
+            var offer = JSON.parse(offerJson);
             that.myPeerConnection.setRemoteDescription(offer).then(remoteDescriptionOffer => {
                 that.myPeerConnection.createAnswer().then(answer => {
                     that.myPeerConnection.setLocalDescription(answer).then(localDescription => {
-                        that.myHubConnection.invoke("SendAnswer", that.myUid, answer).catch(function (err) {
+                        var answerJson = JSON.stringify(answer);
+                        that.myHubConnection.invoke("SendAnswer", that.myUid, answerJson).catch(function (err) {
                             return console.error(err.toString());
-                        });
-                        that.myPeerConnection.setRemoteDescription(answer).then(remoteDescriptionAnswer => {
-
                         });
                     });
                 });
@@ -57,13 +48,23 @@
             that.createVideoStream(divStreams, offer);
         });
 
+        that.myHubConnection.on("RecvAnswer",
+            function (user, answerJson) {
+                var answer = JSON.parse(answerJson);
+                that.myPeerConnection.setRemoteDescription(answer).then(remoteDescriptionAnswer => {
+
+                });
+            });
+
         that.myPeerConnection.onicecandidate = (iceEvent) => {
-            that.myHubConnection.invoke("SendIceCandidate", that.myUid, iceEvent.candidate).catch(function (err) {
+            var iceCandidateJson = JSON.stringify(iceEvent.candidate);
+            that.myHubConnection.invoke("SendIceCandidate", that.myUid, iceCandidateJson).catch(function (err) {
                 return console.error(err.toString());
             });
         };
 
-        that.myHubConnection.on("RecvIceCandidate", function(user, iceCandidate) {
+        that.myHubConnection.on("RecvIceCandidate", function (user, iceCandidateJson) {
+            var iceCandidate = JSON.parse(iceCandidateJson);
             that.myPeerConnection.addIceCandidate(iceCandidate).then(resultIceCandidate => {
 
             });
@@ -77,6 +78,23 @@
                 });
             }
         };
+    },
+
+    startCall: function () {
+        var that = this;
+        if (that.myPeerConnection) {
+            that.myPeerConnection.createOffer().then(offer => {
+                that.myOffer = offer;
+                that.myPeerConnection.setLocalDescription(offer).then(result => {
+                    var offerJson = JSON.stringify(offer);
+                    that.myHubConnection.invoke("SendOffer", that.myUid, offerJson).catch(function(err) {
+                        return console.error(err.toString());
+                    });
+                });
+            });
+        } else {
+            console.log("peer connection not found");
+        }
     },
 
     getUserUid: function() {

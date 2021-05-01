@@ -10,6 +10,11 @@ namespace VideoCall.Hubs
             await Clients.All.SendAsync("RecvOffer", user, message);
         }
 
+        public async Task SendAnswer(string user, string message)
+        {
+            await Clients.All.SendAsync("RecvAnswer", user, message);
+        }
+
         public async Task SendIceCandidate(string user, string message)
         {
             await Clients.All.SendAsync("RecvIceCandidate", user, message);

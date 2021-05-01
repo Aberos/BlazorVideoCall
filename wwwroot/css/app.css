@@ -7,3 +7,9 @@
     height: 40%;
     width: 100%;
 }
+
+.btn-call {
+    height: 15%;
+    width: 15%;
+    font-size: 35px;
+}

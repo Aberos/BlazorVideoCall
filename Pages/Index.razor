@@ -1,9 +1,15 @@
 ﻿@page "/"
+@page "/host"
 
 <div class="row h-100">
     <div class="col-12 col-md-9 h-100 border-right">
         <div @ref="DivStreams" class="row h-100 p-3">
-
+            @if (_isHost && !_inCall)
+            {
+                <div class="col-12 d-flex justify-content-center align-items-center h-100">
+                    <button type="button" class="btn btn-success btn-call" @onclick="InitCall">Start</button>
+                </div>
+            }
         </div>
     </div>
     <div class="d-none d-md-block col-md-3">

@@ -45,7 +45,6 @@
                     });
                 });
             });
-            that.createVideoStream(divStreams, offer);
         });
 
         that.myHubConnection.on("RecvAnswer",

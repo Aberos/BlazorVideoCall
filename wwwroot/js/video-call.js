@@ -6,7 +6,7 @@
     myUid: null,
     myRoomId: null,
 
-    init: function (videoLocalElement, divStreams, roomId = "123456") {
+    init: function (roomId, videoLocalElement, divStreams, dotNetObject) {
         var that = this;
         that.myPeerConnection = null;
         that.myStream = MediaStream;
@@ -82,6 +82,17 @@
                 });
             }
         };
+
+        that.myHubConnection.on("RecvDisconnectLog", function (log) {
+            console.log(log);
+        });
+
+        that.myHubConnection.on("CallUserConnectRoom", function (userConnect, roomId, isHost, roomUsersCount) {
+            console.log(userConnect, roomId, isHost);
+            if (Number(roomUsersCount) > 1) {
+                dotNetObject.invokeMethodAsync("enableStartButton");
+            }
+        });
     },
 
     startCall: function () {

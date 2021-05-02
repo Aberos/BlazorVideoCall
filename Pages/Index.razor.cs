@@ -12,6 +12,8 @@ namespace VideoCall.Pages
         [Inject]
         public NavigationManager NavigationManager { get; set; }
 
+        public string RoomId { get; set; } = "123456";
+
         public ElementReference DivStreams { get; set; }
 
         public ElementReference VideoLocal { get; set; }
@@ -19,6 +21,8 @@ namespace VideoCall.Pages
         private bool _isHost;
 
         private bool _inCall;
+
+        private bool _hasUserConnect;
 
         protected override void OnInitialized()
         {
@@ -30,7 +34,8 @@ namespace VideoCall.Pages
         {
             if (firstRender)
             {
-                await JsRuntime.InvokeVoidAsync("videoCall.init", VideoLocal, DivStreams);
+                var dotNetReference = DotNetObjectReference.Create(this);
+                await JsRuntime.InvokeVoidAsync("videoCall.init", RoomId, VideoLocal, DivStreams, dotNetReference);
             }
             await base.OnAfterRenderAsync(firstRender);
         }
@@ -39,6 +44,16 @@ namespace VideoCall.Pages
         {
             _inCall = true;
             await JsRuntime.InvokeVoidAsync("videoCall.startCall");
+        }
+
+        [JSInvokable("enableStartButton")]
+        private void EnableStartButton()
+        {
+            if (_isHost)
+            {
+                _hasUserConnect = true;
+                StateHasChanged();
+            }
         }
     }
 }

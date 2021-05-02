@@ -7,7 +7,7 @@
             @if (_isHost && !_inCall)
             {
                 <div class="col-12 d-flex justify-content-center align-items-center h-100">
-                    <button type="button" class="btn btn-success btn-call" @onclick="InitCall">Start</button>
+                    <button type="button" class="btn btn-success btn-call" @onclick="InitCall" disabled="@(!_hasUserConnect)">Start</button>
                 </div>
             }
         </div>

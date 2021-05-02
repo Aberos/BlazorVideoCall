@@ -4,13 +4,15 @@
     myPeerConnection: null,
     myOffer: null,
     myUid: null,
+    myRoomId: null,
 
-    init: function (videoLocalElement, divStreams) {
+    init: function (videoLocalElement, divStreams, roomId = "123456") {
         var that = this;
+        that.myPeerConnection = null;
         that.myStream = MediaStream;
         that.myUid = that.getUserUid();
-        that.myHubConnection = new signalR.HubConnectionBuilder().withUrl("/videoCallHub").build();
-
+        that.myRoomId = roomId;
+        that.myHubConnection = new signalR.HubConnectionBuilder().withUrl(`/videoCallHub?username=${that.myUid}&roomId=${that.myRoomId}`).build();
         that.myHubConnection.start().then(function () {
             console.log("connection start");
         }).catch(function (err) {
@@ -33,13 +35,14 @@
 
         });
 
-        that.myHubConnection.on("RecvOffer", function (user, offerJson) {
+        that.myHubConnection.on("RecvOffer", function (userOffer, offerJson) {
             var offer = JSON.parse(offerJson);
+            console.log("recv offer from " + userOffer);
             that.myPeerConnection.setRemoteDescription(offer).then(remoteDescriptionOffer => {
                 that.myPeerConnection.createAnswer().then(answer => {
                     that.myPeerConnection.setLocalDescription(answer).then(localDescription => {
                         var answerJson = JSON.stringify(answer);
-                        that.myHubConnection.invoke("SendAnswer", that.myUid, answerJson).catch(function (err) {
+                        that.myHubConnection.invoke("SendAnswer", that.myUid, userOffer, that.myRoomId, answerJson).catch(function (err) {
                             return console.error(err.toString());
                         });
                     });
@@ -47,22 +50,23 @@
             });
         });
 
-        that.myHubConnection.on("RecvAnswer",
-            function (user, answerJson) {
-                var answer = JSON.parse(answerJson);
-                that.myPeerConnection.setRemoteDescription(answer).then(remoteDescriptionAnswer => {
+        that.myHubConnection.on("RecvAnswer", function (userAnswer, answerJson) {
+            console.log("recv answer from " + userAnswer);
+            var answer = JSON.parse(answerJson);
+            that.myPeerConnection.setRemoteDescription(answer).then(remoteDescriptionAnswer => {
 
-                });
             });
+        });
 
         that.myPeerConnection.onicecandidate = (iceEvent) => {
             var iceCandidateJson = JSON.stringify(iceEvent.candidate);
-            that.myHubConnection.invoke("SendIceCandidate", that.myUid, iceCandidateJson).catch(function (err) {
+            that.myHubConnection.invoke("SendIceCandidate", that.myUid, that.myRoomId, iceCandidateJson).catch(function (err) {
                 return console.error(err.toString());
             });
         };
 
-        that.myHubConnection.on("RecvIceCandidate", function (user, iceCandidateJson) {
+        that.myHubConnection.on("RecvIceCandidate", function (userIceCandidate, iceCandidateJson) {
+            console.log("recv iceCandidate from " + userIceCandidate);
             var iceCandidate = JSON.parse(iceCandidateJson);
             that.myPeerConnection.addIceCandidate(iceCandidate).then(resultIceCandidate => {
 
@@ -71,6 +75,7 @@
 
         that.myPeerConnection.ontrack = (event) => {
             if (event.streams) {
+                console.log("recv streams");
                 event.streams.map(stream => {
                     var colSize = event.streams.length > 1 ? "col-md-6" : "";
                     that.createVideoStream(divStreams, stream, colSize);
@@ -86,7 +91,7 @@
                 that.myOffer = offer;
                 that.myPeerConnection.setLocalDescription(offer).then(result => {
                     var offerJson = JSON.stringify(offer);
-                    that.myHubConnection.invoke("SendOffer", that.myUid, offerJson).catch(function(err) {
+                    that.myHubConnection.invoke("SendOffer", that.myUid, that.myRoomId, offerJson).catch(function(err) {
                         return console.error(err.toString());
                     });
                 });

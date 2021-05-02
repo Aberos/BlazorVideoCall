@@ -47,7 +47,7 @@ namespace VideoCall.Pages
         }
 
         [JSInvokable("enableStartButton")]
-        private void EnableStartButton()
+        public void EnableStartButton()
         {
             if (_isHost)
             {

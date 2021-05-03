@@ -5,6 +5,10 @@
     myOffer: null,
     myUid: null,
     myRoomId: null,
+    mediaConstraints: {
+        audio: true,            // We want an audio track
+        video: true             // ...and we want a video track
+    },
 
     init: function (roomId, videoLocalElement, divStreams, dotNetObject) {
         var that = this;
@@ -23,10 +27,7 @@
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         });
 
-        navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: true
-        }).then(stream => {
+        navigator.mediaDevices.getUserMedia(that.mediaConstraints).then(stream => {
             that.myStream = stream;
             videoLocalElement.srcObject = stream;
             videoLocalElement.muted = true;
@@ -38,7 +39,11 @@
         that.myHubConnection.on("RecvOffer", function (userOffer, offerJson) {
             var offer = JSON.parse(offerJson);
             console.log("recv offer from " + userOffer);
-            that.myPeerConnection.setRemoteDescription(offer).then(remoteDescriptionOffer => {
+            var offerRtc = new RTCSessionDescription(offer);
+            that.myPeerConnection.setRemoteDescription(offerRtc).then(remoteDescriptionOffer => {
+                navigator.mediaDevices.getUserMedia(that.mediaConstraints).then(stream => {
+                    stream.getTracks().forEach(track => that.myPeerConnection.addTrack(track, stream));
+                });
                 that.myPeerConnection.createAnswer().then(answer => {
                     that.myPeerConnection.setLocalDescription(answer).then(localDescription => {
                         var answerJson = JSON.stringify(answer);
@@ -53,7 +58,8 @@
         that.myHubConnection.on("RecvAnswer", function (userAnswer, answerJson) {
             console.log("recv answer from " + userAnswer);
             var answer = JSON.parse(answerJson);
-            that.myPeerConnection.setRemoteDescription(answer).then(remoteDescriptionAnswer => {
+            var answerRtc = new RTCSessionDescription(answer);
+            that.myPeerConnection.setRemoteDescription(answerRtc).then(remoteDescriptionAnswer => {
 
             });
         });

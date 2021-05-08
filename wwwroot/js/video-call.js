@@ -28,12 +28,19 @@
         });
 
         navigator.mediaDevices.getUserMedia(that.mediaConstraints).then(stream => {
+            console.log("add stream");
             that.myStream = stream;
             videoLocalElement.srcObject = stream;
             videoLocalElement.muted = true;
-            stream.getTracks().forEach(track => that.myPeerConnection.addTrack(track, stream));
+            stream.getTracks().forEach(track => {
+                console.log("add track");
+                that.myPeerConnection.addTrack(track, stream);
+            });
+            if (stream.getVideoTracks().length == 0) {
+                videoLocalElement.setAttribute("poster", "/imgs/speaker.png");
+            }
         }).catch(error => {
-
+            console.log(error);
         });
 
         that.myHubConnection.on("RecvOffer", function (userOffer, offerJson) {
@@ -41,11 +48,9 @@
             console.log("recv offer from " + userOffer);
             var offerRtc = new RTCSessionDescription(offer);
             that.myPeerConnection.setRemoteDescription(offerRtc).then(remoteDescriptionOffer => {
-                navigator.mediaDevices.getUserMedia(that.mediaConstraints).then(stream => {
-                    stream.getTracks().forEach(track => that.myPeerConnection.addTrack(track, stream));
-                });
                 that.myPeerConnection.createAnswer().then(answer => {
-                    that.myPeerConnection.setLocalDescription(answer).then(localDescription => {
+                    that.myPeerConnection.setLocalDescription(new RTCSessionDescription(answer)).then(localDescription => {
+                        console.log("send answer from " + userOffer);
                         var answerJson = JSON.stringify(answer);
                         that.myHubConnection.invoke("SendAnswer", that.myUid, userOffer, that.myRoomId, answerJson).catch(function (err) {
                             return console.error(err.toString());
@@ -65,6 +70,7 @@
         });
 
         that.myPeerConnection.onicecandidate = (iceEvent) => {
+            console.log("send iceCandidate ");
             var iceCandidateJson = JSON.stringify(iceEvent.candidate);
             that.myHubConnection.invoke("SendIceCandidate", that.myUid, that.myRoomId, iceCandidateJson).catch(function (err) {
                 return console.error(err.toString());
@@ -74,14 +80,14 @@
         that.myHubConnection.on("RecvIceCandidate", function (userIceCandidate, iceCandidateJson) {
             console.log("recv iceCandidate from " + userIceCandidate);
             var iceCandidate = JSON.parse(iceCandidateJson);
-            that.myPeerConnection.addIceCandidate(iceCandidate).then(resultIceCandidate => {
+            that.myPeerConnection.addIceCandidate(new RTCIceCandidate(iceCandidate)).then(resultIceCandidate => {
 
             });
         });
 
         that.myPeerConnection.ontrack = (event) => {
+            console.log("recv streams");
             if (event.streams) {
-                console.log("recv streams");
                 event.streams.map(stream => {
                     var colSize = event.streams.length > 1 ? "col-md-6" : "";
                     that.createVideoStream(divStreams, stream, colSize);
@@ -137,10 +143,17 @@
 
     createVideoStream: function(divStreams, stream, colSize) {
         var divVideo = document.createElement('div');
-        divVideo.classList.add("col-12", colSize, "h-100");
+        divVideo.classList.add("col-12");
+        divVideo.classList.add("h-100");
+        if (colSize) {
+            divVideo.classList.add(colSize);
+        }
         var videoStream = document.createElement('video');
         videoStream.classList.add("h-100", "w-100");
         videoStream.srcObject = stream;
+        if (stream.getVideoTracks().length == 0) {
+            videoStream.setAttribute("poster", "/imgs/speaker.png");
+        }
         divVideo.appendChild(videoStream);
         divStreams.appendChild(divVideo);
     }

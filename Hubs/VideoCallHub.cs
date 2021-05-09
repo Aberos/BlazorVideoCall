@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using VideoCall.Data;
@@ -59,13 +58,19 @@ namespace VideoCall.Hubs
 
         private async Task ConnectUserRoom(string roomId, CallUser user)
         {
+            if (!IsValidRoom(roomId))
+                throw new Exception("Invalid room");
+
+            if (!IsValidUser(user))
+                throw new Exception("Invalid user");
+
             if (!Rooms.TryGetValue(roomId, out var users))
                 Rooms.Add(roomId, new List<CallUser>());
 
-            if (!Rooms[roomId].Contains(user))
-            {
-                Rooms[roomId].Add(user);
-            }
+            if (Rooms[roomId].Contains(user))
+                throw new Exception("user is already logged in the room");
+
+            Rooms[roomId].Add(user);
 
             if (Rooms[roomId].Any(x=> x.CallId != user.CallId))
             {
@@ -91,6 +96,16 @@ namespace VideoCall.Hubs
             }
 
             return roomUsers;
+        }
+
+        private bool IsValidUser(CallUser user)
+        {
+            return user.CallId != null;
+        }
+
+        private bool IsValidRoom(string roomId)
+        {
+            return !string.IsNullOrWhiteSpace(roomId);
         }
     }
 }

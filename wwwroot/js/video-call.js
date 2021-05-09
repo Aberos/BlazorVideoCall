@@ -5,7 +5,7 @@
     myRoomId: null,
     mediaConstraints: {
         audio: true,            // We want an audio track
-        video: true             // ...and we want a video track
+        video: false             // ...and we want a video track
     },
 
     peerConnections: [],
@@ -26,7 +26,7 @@
                 videoLocalElement.srcObject = stream;
                 videoLocalElement.muted = true;
                 if (stream.getVideoTracks().length == 0) {
-                    videoLocalElement.setAttribute("poster", "/imgs/speaker.png");
+                    //videoLocalElement.setAttribute("poster", "/imgs/speaker.png");
                 }
 
                 that.myHubConnection.on("CallUserConnectRoom", function (callIdConnect, roomId, isHost, roomUsersCount, clients) {
@@ -61,6 +61,22 @@
                                         });
                                     }
                                 };
+
+                                that.peerConnections[client.callId].ondatachannel = (event) => {
+                                    var { channel } = event;
+                                    channel.binaryType = 'arraybuffer';
+
+                                    channel.onmessage = (event) => {
+                                        const { data } = event;
+                                        try {
+                                            var blob = new Blob([data]);
+                                            that.downloadFile(blob, channel.label);
+                                            channel.close();
+                                        } catch (err) {
+                                            console.log('File transfer failed');
+                                        }
+                                    };
+                                };
                             }
                         });
 
@@ -75,7 +91,8 @@
                     }
                 });
             }).catch(function (err) {
-                return console.error(err.toString());
+                console.error(err.toString());
+                alert(err.toString());
             });
         }).catch(error => {
             console.log(error);
@@ -117,8 +134,8 @@
         });
 
         that.myHubConnection.on("CallUserDisconnectRoom", function (callIdDisconnect, roomId) {
-            console.log(log);
-            var divCall = document.querySelectorAll('div[data-call-id=' + callIdDisconnect + ']');
+            console.log(callIdDisconnect + " disconnect from " + roomId);
+            var divCall = document.querySelectorAll('div[data-call-id="' + callIdDisconnect + '"]');
             if (divCall[0]) {
                 divStreams.removeChild(divCall[0]);
             }
@@ -147,11 +164,13 @@
         divVideo.setAttribute("data-call-id", callUserId);
         divVideo.classList.add("col-12");
         divVideo.classList.add("h-100");
+        divVideo.classList.add("video-stream");
         var videoStream = document.createElement('video');
         videoStream.classList.add("h-100", "w-100");
         videoStream.srcObject = stream;
+        videoStream.setAttribute("controls", true);
         if (stream.getVideoTracks().length == 0) {
-            videoStream.setAttribute("poster", "/imgs/speaker.png");
+            //videoStream.setAttribute("poster", "/imgs/speaker.png");
         }
         divVideo.appendChild(videoStream);
         divStreams.appendChild(divVideo);
@@ -166,6 +185,38 @@
                 } else {
                     divElement.classList.remove("col-md-6");
                 }
+            });
+        }
+    },
+
+    downloadFile: function(blob, fileName) {
+        var a = document.createElement('a');
+        var url = window.URL.createObjectURL(blob);
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    },
+
+    sendFile: function () {
+        var that = this;
+        var file;
+        var channelLabel = file.name;
+        if (that.peerConnections) {
+            file.arrayBuffer().then(buffer => {
+                that.peerConnections.map(peerConnection => {
+                    const channel = peerConnection.createDataChannel(channelLabel);
+                    channel.binaryType = 'arraybuffer';
+
+                    channel.onopen = () => {
+                        channel.send(buffer);
+                    }
+
+                    channel.onclose = () => {
+
+                    };
+                });
             });
         }
     }

@@ -13,3 +13,23 @@
     width: 15%;
     font-size: 35px;
 }
+
+video::-webkit-media-controls-play-button {
+    display: none;
+}
+
+video::-webkit-media-controls-timeline {
+    display: none;
+}
+
+video::-webkit-media-controls-current-time-display {
+    display: none;
+}
+
+.video-local::-webkit-media-controls-mute-button {
+    display: none;
+}
+
+.video-local::-webkit-media-controls-volume-slider {
+    display: none;
+}

@@ -1,8 +1,6 @@
 ﻿window.videoCall = {
     myHubConnection: null,
     myStream: MediaStream,
-    myPeerConnection: null,
-    myOffer: null,
     myUid: null,
     myRoomId: null,
     mediaConstraints: {
@@ -10,49 +8,90 @@
         video: true             // ...and we want a video track
     },
 
+    peerConnections: [],
+
     init: function (roomId, videoLocalElement, divStreams, dotNetObject) {
         var that = this;
         that.myPeerConnection = null;
         that.myStream = MediaStream;
         that.myUid = that.getUserUid();
         that.myRoomId = roomId;
-        that.myHubConnection = new signalR.HubConnectionBuilder().withUrl(`/videoCallHub?username=${that.myUid}&roomId=${that.myRoomId}`).build();
-        that.myHubConnection.start().then(function () {
-            console.log("connection start");
-        }).catch(function (err) {
-            return console.error(err.toString());
-        });
-
-        that.myPeerConnection = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        that.myHubConnection = new signalR.HubConnectionBuilder().withUrl(`/videoCallHub?callId=${that.myUid}&roomId=${that.myRoomId}`).build();
 
         navigator.mediaDevices.getUserMedia(that.mediaConstraints).then(stream => {
-            console.log("add stream");
-            that.myStream = stream;
-            videoLocalElement.srcObject = stream;
-            videoLocalElement.muted = true;
-            stream.getTracks().forEach(track => {
-                console.log("add track");
-                that.myPeerConnection.addTrack(track, stream);
+            console.log("get local stream");
+            that.myHubConnection.start().then(function () {
+                console.log("connection hub start");
+                that.myStream = stream;
+                videoLocalElement.srcObject = stream;
+                videoLocalElement.muted = true;
+                if (stream.getVideoTracks().length == 0) {
+                    videoLocalElement.setAttribute("poster", "/imgs/speaker.png");
+                }
+
+                that.myHubConnection.on("CallUserConnectRoom", function (callIdConnect, roomId, isHost, roomUsersCount, clients) {
+                    console.log(callIdConnect, roomId, isHost);
+                    if (Number(roomUsersCount) > 1) {
+                        clients.map(client => {
+                            if (!that.peerConnections[client.callId] && client.callId != that.myUid) {
+                                that.peerConnections[client.callId] = new RTCPeerConnection({
+                                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                                });
+
+                                that.peerConnections[client.callId].onicecandidate = (iceEvent) => {
+                                    console.log("send iceCandidate from " + client.callId);
+                                    var iceCandidateJson = JSON.stringify(iceEvent.candidate);
+                                    that.myHubConnection.invoke("SendIceCandidate", that.myUid, that.myRoomId, client.callId, iceCandidateJson).catch(function (err) {
+                                        return console.error(err.toString());
+                                    });
+                                };
+
+                                stream.getTracks().forEach(track => {
+                                    console.log("add track from " + client.callId);
+                                    that.peerConnections[client.callId].addTrack(track, stream);
+                                });
+
+
+                                that.peerConnections[client.callId].ontrack = (event) => {
+                                    console.log("recv streams from " + client.callId);
+                                    if (event.streams) {
+                                        event.streams.map(stream => {
+                                            that.createVideoStream(divStreams, client.callId, stream);
+                                            that.resizeVideoDiv();
+                                        });
+                                    }
+                                };
+                            }
+                        });
+
+                        that.peerConnections[callIdConnect].createOffer().then(offer => {
+                            that.peerConnections[callIdConnect].setLocalDescription(offer).then(result => {
+                                var offerJson = JSON.stringify(offer);
+                                that.myHubConnection.invoke("SendOffer", that.myUid, that.myRoomId, callIdConnect, offerJson).catch(function (err) {
+                                    return console.error(err.toString());
+                                });
+                            });
+                        });
+                    }
+                });
+            }).catch(function (err) {
+                return console.error(err.toString());
             });
-            if (stream.getVideoTracks().length == 0) {
-                videoLocalElement.setAttribute("poster", "/imgs/speaker.png");
-            }
         }).catch(error => {
             console.log(error);
+            alert(error);
         });
 
-        that.myHubConnection.on("RecvOffer", function (userOffer, offerJson) {
+        that.myHubConnection.on("RecvOffer", function (callIdOffer, offerJson) {
             var offer = JSON.parse(offerJson);
-            console.log("recv offer from " + userOffer);
+            console.log("recv offer from " + callIdOffer);
             var offerRtc = new RTCSessionDescription(offer);
-            that.myPeerConnection.setRemoteDescription(offerRtc).then(remoteDescriptionOffer => {
-                that.myPeerConnection.createAnswer().then(answer => {
-                    that.myPeerConnection.setLocalDescription(new RTCSessionDescription(answer)).then(localDescription => {
-                        console.log("send answer from " + userOffer);
+            that.peerConnections[callIdOffer].setRemoteDescription(offerRtc).then(remoteDescriptionOffer => {
+                that.peerConnections[callIdOffer].createAnswer().then(answer => {
+                    that.peerConnections[callIdOffer].setLocalDescription(new RTCSessionDescription(answer)).then(localDescription => {
+                        console.log("send answer from " + callIdOffer);
                         var answerJson = JSON.stringify(answer);
-                        that.myHubConnection.invoke("SendAnswer", that.myUid, userOffer, that.myRoomId, answerJson).catch(function (err) {
+                        that.myHubConnection.invoke("SendAnswer", that.myUid, callIdOffer, that.myRoomId, answerJson).catch(function (err) {
                             return console.error(err.toString());
                         });
                     });
@@ -60,68 +99,30 @@
             });
         });
 
-        that.myHubConnection.on("RecvAnswer", function (userAnswer, answerJson) {
-            console.log("recv answer from " + userAnswer);
+        that.myHubConnection.on("RecvAnswer", function (callIdAnswer, answerJson) {
+            console.log("recv answer from " + callIdAnswer);
             var answer = JSON.parse(answerJson);
             var answerRtc = new RTCSessionDescription(answer);
-            that.myPeerConnection.setRemoteDescription(answerRtc).then(remoteDescriptionAnswer => {
+            that.peerConnections[callIdAnswer].setRemoteDescription(answerRtc).then(remoteDescriptionAnswer => {
 
             });
         });
 
-        that.myPeerConnection.onicecandidate = (iceEvent) => {
-            console.log("send iceCandidate ");
-            var iceCandidateJson = JSON.stringify(iceEvent.candidate);
-            that.myHubConnection.invoke("SendIceCandidate", that.myUid, that.myRoomId, iceCandidateJson).catch(function (err) {
-                return console.error(err.toString());
-            });
-        };
-
-        that.myHubConnection.on("RecvIceCandidate", function (userIceCandidate, iceCandidateJson) {
-            console.log("recv iceCandidate from " + userIceCandidate);
+        that.myHubConnection.on("RecvIceCandidate", function (callIdIceCandidate, iceCandidateJson) {
+            console.log("recv iceCandidate from " + callIdIceCandidate);
             var iceCandidate = JSON.parse(iceCandidateJson);
-            that.myPeerConnection.addIceCandidate(new RTCIceCandidate(iceCandidate)).then(resultIceCandidate => {
+            that.peerConnections[callIdIceCandidate].addIceCandidate(new RTCIceCandidate(iceCandidate)).then(resultIceCandidate => {
 
             });
         });
 
-        that.myPeerConnection.ontrack = (event) => {
-            console.log("recv streams");
-            if (event.streams) {
-                event.streams.map(stream => {
-                    var colSize = event.streams.length > 1 ? "col-md-6" : "";
-                    that.createVideoStream(divStreams, stream, colSize);
-                });
-            }
-        };
-
-        that.myHubConnection.on("RecvDisconnectLog", function (log) {
+        that.myHubConnection.on("CallUserDisconnectRoom", function (callIdDisconnect, roomId) {
             console.log(log);
-        });
-
-        that.myHubConnection.on("CallUserConnectRoom", function (userConnect, roomId, isHost, roomUsersCount) {
-            console.log(userConnect, roomId, isHost);
-            if (Number(roomUsersCount) > 1) {
-                dotNetObject.invokeMethodAsync("enableStartButton");
+            var divCall = document.querySelectorAll('div[data-call-id=' + callIdDisconnect + ']');
+            if (divCall[0]) {
+                divStreams.removeChild(divCall[0]);
             }
         });
-    },
-
-    startCall: function () {
-        var that = this;
-        if (that.myPeerConnection) {
-            that.myPeerConnection.createOffer().then(offer => {
-                that.myOffer = offer;
-                that.myPeerConnection.setLocalDescription(offer).then(result => {
-                    var offerJson = JSON.stringify(offer);
-                    that.myHubConnection.invoke("SendOffer", that.myUid, that.myRoomId, offerJson).catch(function(err) {
-                        return console.error(err.toString());
-                    });
-                });
-            });
-        } else {
-            console.log("peer connection not found");
-        }
     },
 
     getUserUid: function() {
@@ -141,13 +142,11 @@
         });
     },
 
-    createVideoStream: function(divStreams, stream, colSize) {
+    createVideoStream: function (divStreams, callUserId, stream) {
         var divVideo = document.createElement('div');
+        divVideo.setAttribute("data-call-id", callUserId);
         divVideo.classList.add("col-12");
         divVideo.classList.add("h-100");
-        if (colSize) {
-            divVideo.classList.add(colSize);
-        }
         var videoStream = document.createElement('video');
         videoStream.classList.add("h-100", "w-100");
         videoStream.srcObject = stream;
@@ -156,5 +155,18 @@
         }
         divVideo.appendChild(videoStream);
         divStreams.appendChild(divVideo);
+    },
+
+    resizeVideoDiv: function() {
+        var usersDivs = document.querySelectorAll('div[data-call-id]');
+        if (usersDivs) {
+            Array.from(usersDivs).map(divElement => {
+                if (usersDivs.length > 1) {
+                    divElement.classList.add("col-md-6");
+                } else {
+                    divElement.classList.remove("col-md-6");
+                }
+            });
+        }
     }
 }

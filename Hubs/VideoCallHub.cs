@@ -15,9 +15,9 @@ namespace VideoCall.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            var username = Context.GetHttpContext().Request.Query["username"].ToString();
+            var callId = Context.GetHttpContext().Request.Query["callId"].ToString();
             var roomId = Context.GetHttpContext().Request.Query["roomId"].ToString();
-            var callUser = new CallUser(username, Context.ConnectionId);
+            var callUser = new CallUser(callId, Context.ConnectionId);
             await ConnectUserRoom(roomId, callUser);
 
             await base.OnConnectedAsync();
@@ -30,32 +30,31 @@ namespace VideoCall.Hubs
             {
                 if (Rooms[roomId].Any(x => x.ConnectionId == Context.ConnectionId))
                 {
-                    var username = Rooms[roomId].Find(x => x.ConnectionId == Context.ConnectionId)?.Username;
+                    var callId = Rooms[roomId].Find(x => x.ConnectionId == Context.ConnectionId)?.CallId;
                     Rooms[roomId] = RemoveUserFromRoom(roomId, Context.ConnectionId);
-                    var log = $"{username} disconnect from {roomId}";
-                    await Clients.Clients(Rooms[roomId].Select(x=> x.ConnectionId).ToList()).SendAsync("RecvDisconnectLog", log);
+                    await Clients.Clients(Rooms[roomId].Select(x=> x.ConnectionId).ToList()).SendAsync("CallUserDisconnectRoom", callId, roomId);
                 }
             }
 
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendOffer(string usernameOffer, string roomId, string message)
+        public async Task SendOffer(string callIdSendOffer, string roomId, string callIdRecvOffer, string message)
         {
-            var roomUsers = GetRoomUsers(roomId).FindAll(x => x.Username != usernameOffer).Select(x => x.ConnectionId).ToList();
-            await Clients.Clients(roomUsers).SendAsync("RecvOffer", usernameOffer, message);
+            var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvOffer).Select(x => x.ConnectionId).ToList();
+            await Clients.Clients(roomUsers).SendAsync("RecvOffer", callIdSendOffer, message);
         }
 
-        public async Task SendAnswer(string usernameAnswer, string usernameOffer, string roomId, string message)
+        public async Task SendAnswer(string callIdSendAnswer, string callIdRecvAnswer, string roomId, string message)
         {
-            var userOfferConnections = GetRoomUsers(roomId).FindAll(x => x.Username == usernameOffer).Select(x=> x.ConnectionId).ToList();
-            await Clients.Clients(userOfferConnections).SendAsync("RecvAnswer", usernameAnswer, message);
+            var userOfferConnections = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvAnswer).Select(x=> x.ConnectionId).ToList();
+            await Clients.Clients(userOfferConnections).SendAsync("RecvAnswer", callIdSendAnswer, message);
         }
 
-        public async Task SendIceCandidate(string usernameIceCandidate, string roomId, string message)
+        public async Task SendIceCandidate(string callIdIceCandidate, string roomId, string callIdReceiveIceCandidate, string message)
         {
-            var roomUsers = GetRoomUsers(roomId).FindAll(x => x.Username != usernameIceCandidate).Select(x => x.ConnectionId).ToList();
-            await Clients.Clients(roomUsers).SendAsync("RecvIceCandidate", usernameIceCandidate, message);
+            var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdReceiveIceCandidate).Select(x => x.ConnectionId).ToList();
+            await Clients.Clients(roomUsers).SendAsync("RecvIceCandidate", callIdIceCandidate, message);
         }
 
         private async Task ConnectUserRoom(string roomId, CallUser user)
@@ -68,10 +67,10 @@ namespace VideoCall.Hubs
                 Rooms[roomId].Add(user);
             }
 
-            if (Rooms[roomId].Any(x=> x.Username != user.Username))
+            if (Rooms[roomId].Any(x=> x.CallId != user.CallId))
             {
                 await Clients.Clients(Rooms[roomId].Select(x => x.ConnectionId).ToList())
-                    .SendAsync("CallUserConnectRoom", user.Username, roomId, false, Rooms[roomId].Count);
+                    .SendAsync("CallUserConnectRoom", user.CallId, roomId, false, Rooms[roomId].Count, Rooms[roomId]);
             }
         }
 

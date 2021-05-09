@@ -7,13 +7,13 @@
             
         }
 
-        public CallUser(string userName, string connectionId)
+        public CallUser(string callId, string connectionId)
         {
-            Username = userName;
+            CallId = callId;
             ConnectionId = connectionId;
         }
 
-        public string Username { get; set; }
+        public string CallId { get; set; }
 
         public string ConnectionId { get; set; }
     }

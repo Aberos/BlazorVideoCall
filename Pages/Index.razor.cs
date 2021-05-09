@@ -18,18 +18,6 @@ namespace VideoCall.Pages
 
         public ElementReference VideoLocal { get; set; }
 
-        private bool _isHost;
-
-        private bool _inCall;
-
-        private bool _hasUserConnect;
-
-        protected override void OnInitialized()
-        {
-            _isHost = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).ToLower() == "host";
-            base.OnInitialized();
-        }
-
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             if (firstRender)
@@ -38,22 +26,6 @@ namespace VideoCall.Pages
                 await JsRuntime.InvokeVoidAsync("videoCall.init", RoomId, VideoLocal, DivStreams, dotNetReference);
             }
             await base.OnAfterRenderAsync(firstRender);
-        }
-
-        private async Task InitCall()
-        {
-            _inCall = true;
-            await JsRuntime.InvokeVoidAsync("videoCall.startCall");
-        }
-
-        [JSInvokable("enableStartButton")]
-        public void EnableStartButton()
-        {
-            if (_isHost)
-            {
-                _hasUserConnect = true;
-                StateHasChanged();
-            }
         }
     }
 }

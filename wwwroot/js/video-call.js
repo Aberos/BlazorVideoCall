@@ -5,7 +5,7 @@
     myRoomId: null,
     mediaConstraints: {
         audio: true,            // We want an audio track
-        video: false             // ...and we want a video track
+        video: true             // ...and we want a video track
     },
 
     peerConnections: [],

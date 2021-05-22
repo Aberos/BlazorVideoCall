@@ -139,17 +139,13 @@
             if (divCall[0]) {
                 divStreams.removeChild(divCall[0]);
             }
+
+            this.peerConnections[callIdDisconnect] = null;
         });
     },
 
     getUserUid: function() {
-        var userUid = localStorage.getItem("user-uid");
-        if (userUid)
-            return userUid;
-
-        userUid = this.generateUserUid();
-        localStorage.setItem("user-uid", userUid);
-        return userUid;
+        return Math.round(new Date() * Math.random());
     },
 
     generateUserUid: function () {

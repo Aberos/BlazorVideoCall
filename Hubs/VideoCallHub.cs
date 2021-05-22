@@ -38,22 +38,22 @@ namespace VideoCall.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendOffer(string callIdSendOffer, string roomId, string callIdRecvOffer, string message)
+        public async Task SendOffer(string callIdSendOffer, string roomId, string callIdRecvOffer, RTCDescription offer)
         {
             var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvOffer).Select(x => x.ConnectionId).ToList();
-            await Clients.Clients(roomUsers).SendAsync("RecvOffer", callIdSendOffer, message);
+            await Clients.Clients(roomUsers).SendAsync("RecvOffer", callIdSendOffer, offer);
         }
 
-        public async Task SendAnswer(string callIdSendAnswer, string callIdRecvAnswer, string roomId, string message)
+        public async Task SendAnswer(string callIdSendAnswer, string callIdRecvAnswer, string roomId, RTCDescription answer)
         {
             var userOfferConnections = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvAnswer).Select(x=> x.ConnectionId).ToList();
-            await Clients.Clients(userOfferConnections).SendAsync("RecvAnswer", callIdSendAnswer, message);
+            await Clients.Clients(userOfferConnections).SendAsync("RecvAnswer", callIdSendAnswer, answer);
         }
 
-        public async Task SendIceCandidate(string callIdIceCandidate, string roomId, string callIdReceiveIceCandidate, string message)
+        public async Task SendIceCandidate(string callIdIceCandidate, string roomId, string callIdReceiveIceCandidate, RTCIceCandidate iceCandidate)
         {
             var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdReceiveIceCandidate).Select(x => x.ConnectionId).ToList();
-            await Clients.Clients(roomUsers).SendAsync("RecvIceCandidate", callIdIceCandidate, message);
+            await Clients.Clients(roomUsers).SendAsync("RecvIceCandidate", callIdIceCandidate, iceCandidate);
         }
 
         private async Task ConnectUserRoom(string roomId, CallUser user)
@@ -75,7 +75,7 @@ namespace VideoCall.Hubs
             if (Rooms[roomId].Any(x=> x.CallId != user.CallId))
             {
                 await Clients.Clients(Rooms[roomId].Select(x => x.ConnectionId).ToList())
-                    .SendAsync("CallUserConnectRoom", user.CallId, roomId, false, Rooms[roomId].Count, Rooms[roomId]);
+                    .SendAsync("CallUserConnectRoom", user.CallId, roomId, false, Rooms[roomId].Count, Rooms[roomId].FindAll(x=> x.ConnectionId != Context.ConnectionId));
             }
         }
 

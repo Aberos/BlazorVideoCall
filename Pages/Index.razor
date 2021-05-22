@@ -1,13 +1,16 @@
 ﻿@page "/"
-@page "/host"
+@page "/{roomId}"
 
 <div class="row h-100">
     <div class="col-12 col-md-9 h-100 border-right">
-        <div @ref="DivStreams" class="row h-100 p-3">
-
+        <div @ref="DivStreams" class="row h-100 p-3 @(!_initialized ? "d-flex justify-content-center align-items-center"  : "")">
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <h3>@_errorMessage</h3>
+            }
         </div>
     </div>
     <div class="d-none d-md-block col-md-3">
-        <video @ref="VideoLocal" class="video-local" controls="true"></video>
+        <video @ref="VideoLocal" class="video-local" controls="true" autoplay playsinline></video>
     </div>
 </div>

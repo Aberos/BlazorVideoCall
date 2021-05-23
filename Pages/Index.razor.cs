@@ -111,8 +111,8 @@ namespace VideoCall.Pages
             {
                 if (!_clientsOn.Contains(client.CallId))
                 {
-                    await JsRuntime.InvokeVoidAsync("videoCall.createPeerConnection", client.CallId, DivStreams, _dotNetRef);
                     _clientsOn.Add(client.CallId);
+                    await JsRuntime.InvokeVoidAsync("videoCall.createPeerConnection", client.CallId, DivStreams, _dotNetRef);
                 }
             }
         }

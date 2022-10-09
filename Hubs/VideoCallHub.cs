@@ -31,26 +31,27 @@ namespace VideoCall.Hubs
                 {
                     var callId = Rooms[roomId].Find(x => x.ConnectionId == Context.ConnectionId)?.CallId;
                     Rooms[roomId] = RemoveUserFromRoom(roomId, Context.ConnectionId);
-                    await Clients.Clients(Rooms[roomId].Select(x=> x.ConnectionId).ToList()).SendAsync("CallUserDisconnectRoom", callId, roomId);
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
+                    await Clients.GroupExcept(roomId, Context.ConnectionId).SendAsync("CallUserDisconnectRoom", callId, roomId);
                 }
             }
 
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendOffer(string callIdSendOffer, string roomId, string callIdRecvOffer, RTCDescription offer)
+        public async Task SendOffer(string callIdSendOffer, string roomId, string callIdRecvOffer, object offer)
         {
             var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvOffer).Select(x => x.ConnectionId).ToList();
             await Clients.Clients(roomUsers).SendAsync("RecvOffer", callIdSendOffer, offer);
         }
 
-        public async Task SendAnswer(string callIdSendAnswer, string callIdRecvAnswer, string roomId, RTCDescription answer)
+        public async Task SendAnswer(string callIdSendAnswer, string callIdRecvAnswer, string roomId, object answer)
         {
             var userOfferConnections = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdRecvAnswer).Select(x=> x.ConnectionId).ToList();
             await Clients.Clients(userOfferConnections).SendAsync("RecvAnswer", callIdSendAnswer, answer);
         }
 
-        public async Task SendIceCandidate(string callIdIceCandidate, string roomId, string callIdReceiveIceCandidate, RTCIceCandidate iceCandidate)
+        public async Task SendIceCandidate(string callIdIceCandidate, string roomId, string callIdReceiveIceCandidate, object iceCandidate)
         {
             var roomUsers = GetRoomUsers(roomId).FindAll(x => x.CallId == callIdReceiveIceCandidate).Select(x => x.ConnectionId).ToList();
             await Clients.Clients(roomUsers).SendAsync("RecvIceCandidate", callIdIceCandidate, iceCandidate);
@@ -70,12 +71,13 @@ namespace VideoCall.Hubs
             if (Rooms[roomId].Contains(user))
                 throw new Exception("user is already logged in the room");
 
+            await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
             Rooms[roomId].Add(user);
 
             if (Rooms[roomId].Any(x=> x.CallId != user.CallId))
             {
-                await Clients.Clients(Rooms[roomId].Select(x => x.ConnectionId).ToList())
-                    .SendAsync("CallUserConnectRoom", user.CallId, roomId, false, Rooms[roomId].Count, Rooms[roomId].FindAll(x=> x.ConnectionId != Context.ConnectionId));
+                await Clients.GroupExcept(roomId, Context.ConnectionId)
+                    .SendAsync("CallUserConnectRoom", user.CallId, roomId, false, Rooms[roomId]);                   
             }
         }
 

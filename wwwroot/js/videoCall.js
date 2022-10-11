@@ -126,11 +126,6 @@ export async function createAnswer(callIdOffer, offer, divStreams) {
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
 
-    videoCall.callIdsConnected.push(callIdOffer);
-
-    var offerRtc = new RTCSessionDescription(offer);
-    await videoCall.peerConnections[callIdOffer].setRemoteDescription(offerRtc);
-
     videoCall.myStream.getTracks().forEach(track => {
         videoCall.peerConnections[callIdOffer].addTrack(track, videoCall.myStream);
     });
@@ -147,6 +142,11 @@ export async function createAnswer(callIdOffer, offer, divStreams) {
     videoCall.peerConnections[callIdOffer].onicecandidate = (iceEvent) => {
         videoCall.hubConnection.invoke("SendIceCandidate", videoCall.myUid, videoCall.roomId, callIdOffer, iceEvent.candidate);
     };
+
+    videoCall.callIdsConnected.push(callIdOffer);
+
+    var offerRtc = new RTCSessionDescription(offer);
+    await videoCall.peerConnections[callIdOffer].setRemoteDescription(offerRtc);
 
     var answer = await videoCall.peerConnections[callIdOffer].createAnswer();
     await videoCall.peerConnections[callIdOffer].setLocalDescription(new RTCSessionDescription(answer));

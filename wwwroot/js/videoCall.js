@@ -49,6 +49,13 @@ export async function init(videoLocalElement, host, divStreams, dotNetObject) {
             removeVideoStream(callIdDisconnect, divStreams);
         });
 
+        connection.onclose((error) => {
+            localStream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            dotNetObject.invokeMethodAsync("errorGetUserMedia", error.message);
+        });
+
         dotNetObject.invokeMethodAsync("onGetUserMedia");
     } catch (error) {
         dotNetObject.invokeMethodAsync("errorGetUserMedia", error.toString());

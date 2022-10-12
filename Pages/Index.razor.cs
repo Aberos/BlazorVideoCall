@@ -18,11 +18,12 @@ namespace VideoCall.Pages
         [Parameter]
         public string RoomId { get; set; }
 
+        [Parameter]
+        public string Token { get; set; }
+
         public ElementReference DivStreams { get; set; }
 
         public ElementReference VideoLocal { get; set; }
-
-        public string Uid { get; set; }
 
         private DotNetObjectReference<Index> _dotNetRef;
         private IJSObjectReference _module;
@@ -31,7 +32,8 @@ namespace VideoCall.Pages
 
         protected override void OnInitialized()
         {
-            Uid = Guid.NewGuid().ToString();
+            if(string.IsNullOrWhiteSpace(Token))
+                Token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
 
             if (string.IsNullOrWhiteSpace(RoomId))
                 RoomId = "123456";
@@ -47,7 +49,7 @@ namespace VideoCall.Pages
             {
                 _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/videoCall.js");
                 await _module.InvokeVoidAsync("init", 
-                    VideoLocal, new Uri($"https://localhost:5001/videoCallHub?callId={Uid}&roomId={RoomId}"), RoomId, Uid, DivStreams, _dotNetRef);
+                    VideoLocal, new Uri($"https://localhost:5001/videoCallHub?token={Token}&roomId={RoomId}"), DivStreams, _dotNetRef);
             }
 
             await base.OnAfterRenderAsync(firstRender);

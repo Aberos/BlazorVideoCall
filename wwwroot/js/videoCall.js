@@ -3,17 +3,14 @@
     peerConnections: [],
     myStream: MediaStream,
     mediaConstraints: {
-        audio: true,            // We want an audio track
-        video: true             // ...and we want a video track
+        audio: true,
+        video: true 
     },
     hubConnection: null,
-    myUid: null,
-    roomId: null,
-    clientsHub: [],
     callIdsConnected: []
 }
 
-export async function init(videoLocalElement, host, roomId, myUid, divStreams, dotNetObject) {
+export async function init(videoLocalElement, host, divStreams, dotNetObject) {
     try {
         var localStream = await navigator.mediaDevices.getUserMedia(window.videoCall.mediaConstraints);
 
@@ -23,28 +20,16 @@ export async function init(videoLocalElement, host, roomId, myUid, divStreams, d
             .configureLogging(signalR.LogLevel.Information)
             .build();
 
-        await connection.start();
+        var x = await connection.start();
         window.videoCall.myStream = localStream;
         window.videoCall.hubConnection = connection;
-        window.videoCall.roomId = roomId;
-        window.videoCall.myUid = myUid;
 
         videoLocalElement.srcObject = localStream;
         videoLocalElement.muted = true;
 
-        connection.on("CallUserConnectRoom", async (callIdConnect, roomId, isHost, clients) => {
-            if (clients) {
-                window.videoCall.clientsHub = clients.filter(client => client.callId != myUid);
-                window.videoCall.clientsHub.map(async (client) => {
-                    var hasCallId = window.videoCall.callIdsConnected.some(callId => callId == client.callId);
-                    if (!hasCallId) {
-                        window.videoCall.callIdsConnected.push(client.callId);
-                        await createPeerConnection(client.callId, divStreams);
-                    }
-                });
-            } else {
-                window.videoCall.clientsHub = [];
-            }
+        connection.on("CallUserConnectRoom", async (callIdConnect, callName, isHost) => {
+            window.videoCall.callIdsConnected.push(callIdConnect);
+            await createPeerConnection(callIdConnect, divStreams);
         });
 
         connection.on("RecvOffer", (callIdOffer, offer) => {
@@ -59,7 +44,7 @@ export async function init(videoLocalElement, host, roomId, myUid, divStreams, d
             setIceCandidate(callIdIceCandidate, iceCandidate)
         });
 
-        connection.on("CallUserDisconnectRoom", (callIdDisconnect, roomId) => {
+        connection.on("CallUserDisconnectRoom", (callIdDisconnect, callName) => {
             clearPeerConnection(callIdDisconnect);
             removeVideoStream(callIdDisconnect, divStreams);
         });
@@ -105,17 +90,16 @@ export async function createPeerConnection(callIdConnect, divStreams) {
     };
 
     videoCall.peerConnections[callIdConnect].onicecandidate = (iceEvent) => {
-        videoCall.hubConnection.invoke("SendIceCandidate", videoCall.myUid, videoCall.roomId, callIdConnect, iceEvent.candidate);
+        videoCall.hubConnection.invoke("SendIceCandidate", callIdConnect, iceEvent.candidate);
     };
 
     var offer = await videoCall.peerConnections[callIdConnect].createOffer();
     await videoCall.peerConnections[callIdConnect].setLocalDescription(offer);
-    videoCall.hubConnection.invoke("SendOffer", videoCall.myUid, videoCall.roomId, callIdConnect, offer);
+    videoCall.hubConnection.invoke("SendOffer", callIdConnect, offer);
 }
 
 export function clearPeerConnection(callIdConnect) {
     var videoCall = window.videoCall;
-    videoCall.clientsHub = videoCall.clientsHub.filter(client => client.callId != callIdConnect);
     videoCall.callIdsConnected = videoCall.callIdsConnected.filter(callId => callId != callIdConnect);
     videoCall.peerConnections[callIdConnect] = null;
 }
@@ -140,7 +124,7 @@ export async function createAnswer(callIdOffer, offer, divStreams) {
     };
 
     videoCall.peerConnections[callIdOffer].onicecandidate = (iceEvent) => {
-        videoCall.hubConnection.invoke("SendIceCandidate", videoCall.myUid, videoCall.roomId, callIdOffer, iceEvent.candidate);
+        videoCall.hubConnection.invoke("SendIceCandidate", callIdOffer, iceEvent.candidate);
     };
 
     videoCall.callIdsConnected.push(callIdOffer);
@@ -150,7 +134,7 @@ export async function createAnswer(callIdOffer, offer, divStreams) {
 
     var answer = await videoCall.peerConnections[callIdOffer].createAnswer();
     await videoCall.peerConnections[callIdOffer].setLocalDescription(new RTCSessionDescription(answer));
-    videoCall.hubConnection.invoke("SendAnswer", videoCall.myUid, callIdOffer, videoCall.roomId, answer);
+    videoCall.hubConnection.invoke("SendAnswer", callIdOffer, answer);
 }
 
 export function setAnwser(callIdAnswer, answer) {
